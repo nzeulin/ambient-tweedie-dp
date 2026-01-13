@@ -17,6 +17,7 @@ dependencies:
   - peft
   - webdataset
   - diffusers
+  - gdown
   - pip:
     - invisible_watermark
     - opencv-python

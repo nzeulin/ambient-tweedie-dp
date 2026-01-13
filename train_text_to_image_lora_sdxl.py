@@ -57,7 +57,7 @@ from diffusers.utils import check_min_version, convert_state_dict_to_diffusers, 
 from diffusers.utils.import_utils import is_xformers_available
 from diffusers.utils.torch_utils import is_compiled_module
 import time
-from ambient_utils.eval_utils import calculate_inception_stats, calculate_fid_from_inception_stats
+from ambient_utils.eval import calculate_inception_stats, calculate_fid_from_inception_stats
 import PIL
 
 

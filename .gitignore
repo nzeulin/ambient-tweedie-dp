@@ -163,6 +163,8 @@ cython_debug/
 sdxl/*
 outputs/*
 yolov5s.pt
+datasets
+laion_*
 
 # VSCode things
 .vscode
