@@ -1,26 +1,24 @@
 name: ambient_tweedie
 channels:
-  - pytorch
-  - nvidia
-  - nvidia/label/cuda-12.1.0
+  - conda-forge
 dependencies:
-  - pytorch
+  - python=3.11
+  - pytorch=2.5.1=cuda126*
   - torchvision
-  - pytorch-cuda=12.1
-  - cuda-toolkit
+  - transformers
+  - datasets
+  - imageio
+  - seaborn
+  - plotly
+  - wandb
+  - s3fs
+  - accelerate
+  - safetensors
+  - peft
+  - webdataset
+  - diffusers
   - pip:
     - invisible_watermark
-    - transformers 
-    - accelerate 
-    - safetensors
-    - datasets
-    - peft
-    - wandb
-    - imageio
-    - s3fs
-    - seaborn
-    - plotly
-    - opencv-python=4.8.0.74
-    - webdataset
+    - opencv-python
+    - imagecorruptions
     - git+https://github.com/giannisdaras/ambient_utils.git
-    - git+https://github.com/huggingface/diffusers.git
