@@ -165,6 +165,7 @@ outputs/*
 yolov5s.pt
 datasets
 laion_*
+wandb
 
 # VSCode things
 .vscode
