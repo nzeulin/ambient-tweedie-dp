@@ -27,3 +27,10 @@ source .env
 # 5. Run script util_scripts/download_datasets.sh
 echo "Downloading datasets..."
 bash util_scripts/download_datasets.sh
+cd /workspace/ambient-tweedie-dp
+
+# 6. Running the script
+accelerate launch train_text_to_image_lora_sdxl.py \
+           --config=configs/train_high_level_laion10k.yaml \
+           --report_to=wandb \
+           --expr_id=laion10k_high_test

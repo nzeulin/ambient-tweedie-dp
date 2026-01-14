@@ -17,7 +17,6 @@ validation_prompt: "A dog sitting on a bench"
 seed: 42   
 
 # Dataset params
-# train_data_dir: "$LAION_RAW_DATA/laion-10k/"
 train_data_dir: "$LAION_RAW_DATA_RESCALED"
 captions_loc: "$CAPTIONS_LOC"
 train_batch_size: 1

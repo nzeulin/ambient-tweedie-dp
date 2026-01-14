@@ -17,9 +17,9 @@ validation_prompt: "A dog sitting on a bench"
 seed: 42   
 
 # Dataset params
-train_data_dir: "$LAION_RAW_DATA/laion-10k/"
+train_data_dir: "$LAION_RAW_DATA_RESCALED"
 captions_loc: "$CAPTIONS_LOC"
-train_batch_size: 2
+train_batch_size: 1
 num_train_epochs: 4000
 gradient_accumulation_steps: 1
 
@@ -40,6 +40,7 @@ consistency_coeff: 0.015
 num_consistency_steps: 2
 max_steps_diff: 50
 run_consistency_everywhere: True
+with_grad: True             # NZ: was missing in the original file
 
 # FID params
 track_fid: False
