@@ -161,11 +161,11 @@ def parse_args(input_args=None):
         help="Number of images that should be generated during validation with `validation_prompt`.",
     )
     parser.add_argument(
-        "--validation_epochs",
+        "--validation_steps",
         type=int,
-        default=1,
+        default=1_000,
         help=(
-            "Run fine-tuning validation every X epochs. The validation process consists of running the prompt"
+            "Run fine-tuning validation every X steps. The validation process consists of running the prompt"
             " `args.validation_prompt` multiple times: `args.num_validation_images`."
         ),
     )
@@ -1060,7 +1060,7 @@ def main(args):
                         "prompts": [args.validation_prompt] * len(batch_index),
 
                     }
-                    image_tensor = ambient_utils.diffusers_utils.sample_with_early_stop(pipe, denoising_end, **pipe_kwargs)
+                    image_tensor = ambient_utils.diffusers.sample_with_early_stop(pipe, denoising_end, **pipe_kwargs)
                     image_path = os.path.join(args.output_dir, "validation_images", str(global_step), f"{str(int(batch_index)).zfill(6)}.png")
                     ambient_utils.save_images(image_tensor, image_path)
                     images.append(PIL.Image.open(image_path))
@@ -1117,8 +1117,8 @@ def main(args):
                 # Add noise to the model input according to the noise magnitude at each timestep
                 # (this is the forward diffusion process)
                 if args.noisy_ambient:
-                    desired_sigmas = ambient_utils.diffusers_utils.timesteps_to_sigma(timesteps, noise_scheduler.alphas_cumprod.to(timesteps.device))
-                    current_sigmas = ambient_utils.diffusers_utils.timesteps_to_sigma(torch.ones_like(timesteps) * args.timestep_nature, noise_scheduler.alphas_cumprod.to(timesteps.device))                    
+                    desired_sigmas = ambient_utils.diffusers.timesteps_to_sigma(timesteps, noise_scheduler.alphas_cumprod.to(timesteps.device))
+                    current_sigmas = ambient_utils.diffusers.timesteps_to_sigma(torch.ones_like(timesteps) * args.timestep_nature, noise_scheduler.alphas_cumprod.to(timesteps.device))                    
                     noisy_model_input, noise_realization, noise_mask = ambient_utils.add_extra_noise_from_vp_to_vp(model_input, current_sigmas, desired_sigmas)
                 else:
                     noisy_model_input = noise_scheduler.add_noise(model_input, noise, timesteps)
@@ -1202,7 +1202,7 @@ def main(args):
                     loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
                     loss = loss.mean(dim=list(range(1, len(loss.shape)))) * mse_loss_weights
 
-                if args.consistency_coeff > 0.0:
+                if args.consistency_coeff > 0.0 and global_step > args.consistency_kick_in:
                     if args.run_consistency_everywhere:
                         xt = noisy_model_input
                         timesteps_xt = timesteps
@@ -1213,7 +1213,7 @@ def main(args):
 
 
                     def move_one_step(xt, timesteps_xt, timesteps_xs=None):
-                        sigma_t = ambient_utils.diffusers_utils.timesteps_to_sigma(timesteps_xt, noise_scheduler.alphas_cumprod.to(timesteps.device))
+                        sigma_t = ambient_utils.diffusers.timesteps_to_sigma(timesteps_xt, noise_scheduler.alphas_cumprod.to(timesteps.device))
                         var_t = sigma_t ** 2
                         noise_pred_xt = unet(xt, timesteps_xt, prompt_embeds, added_cond_kwargs=unet_added_conditions, return_dict=False)[0]
                         x0_pred = ambient_utils.from_noise_pred_to_x0_pred_vp(xt, noise_pred_xt, sigma_t)
@@ -1223,7 +1223,7 @@ def main(args):
                             steps_diffs = torch.randint(1, args.max_steps_diff + 1, (bsz,), device=timesteps_xt.device)
                             timesteps_xs = torch.max(torch.zeros_like(timesteps_xt), timesteps_xt - steps_diffs)
 
-                        sigma_s = ambient_utils.diffusers_utils.timesteps_to_sigma(timesteps_xs, noise_scheduler.alphas_cumprod.to(timesteps_xt.device))
+                        sigma_s = ambient_utils.diffusers.timesteps_to_sigma(timesteps_xs, noise_scheduler.alphas_cumprod.to(timesteps_xt.device))
                         var_s = sigma_s ** 2
                         alpha_s = torch.sqrt(1 - var_s)[:, None, None, None]
 
@@ -1269,7 +1269,7 @@ def main(args):
 
                     x_t_prime_2 = x_curr
                     timesteps_xs = t_curr                            
-                    sigma_s = ambient_utils.diffusers_utils.timesteps_to_sigma(timesteps_xs, noise_scheduler.alphas_cumprod.to(timesteps.device))
+                    sigma_s = ambient_utils.diffusers.timesteps_to_sigma(timesteps_xs, noise_scheduler.alphas_cumprod.to(timesteps.device))
                     
                     # Predict at the new timesteps
                     preds_prime_1 = unet(x_t_prime_1, timesteps_xs, prompt_embeds, added_cond_kwargs=unet_added_conditions, return_dict=False)[0]
@@ -1348,7 +1348,7 @@ def main(args):
             if global_step >= args.max_train_steps:
                 break
             
-        if args.validation_prompt is not None and epoch % args.validation_epochs == 0:
+        if args.validation_prompt is not None and global_step % args.validation_steps == 0:
             # only run validation if at least args.min_validation_steps have been run since last validation
             if global_step - last_validation_step < args.min_validation_steps:
                 continue
@@ -1386,7 +1386,7 @@ def main(args):
 
         # generate images for validation
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and epoch % args.validation_epochs == 0:
+            if args.validation_prompt is not None and global_step % args.validation_steps == 0:
                 # only run validation if at least args.min_validation_steps have been run since last validation
                 if global_step - last_validation_step < args.min_validation_steps:
                     continue
@@ -1418,7 +1418,7 @@ def main(args):
 
                 del pipeline
                 ambient_utils.save_images(torch.cat([model_input, noisy_model_input, x0_pred]), 
-                                          os.path.join(args.output_dir, "l_nature|l_input|l_red.png"), num_rows=3, 
+                                          os.path.join(args.output_dir, f"l_nature|l_input|l_red-{global_step}.png"), num_rows=3, 
                                           save_wandb=True if args.report_to == "wandb" else False)
                 accelerator.print("Decoding images...")
                 with torch.no_grad():
@@ -1427,7 +1427,7 @@ def main(args):
                     dec_x0_pred = vae.decode(x0_pred.to(vae.dtype) / vae.config.scaling_factor).sample
                 del model_input, noisy_model_input, x0_pred    
                 ambient_utils.save_images(torch.cat([dec_model_input, dec_noisy_model_input, dec_x0_pred]), 
-                                          os.path.join(args.output_dir, "dec_nature|dec_input|dec_pred.png"), num_rows=3,
+                                          os.path.join(args.output_dir, f"dec_nature|dec_input|dec_pred-{global_step}.png"), num_rows=3,
                                           save_wandb=True if args.report_to == "wandb" else False)
                 del dec_model_input, dec_noisy_model_input, dec_x0_pred
                 accelerator.print("Finished decoding...")
