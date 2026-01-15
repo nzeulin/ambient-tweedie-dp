@@ -31,6 +31,7 @@ cd /workspace/ambient-tweedie-dp
 
 # 6. Running the script
 accelerate launch train_text_to_image_lora_sdxl.py \
-           --config=configs/train_high_level_laion10k.yaml \
+           --config=configs/train_high_level.yaml \
            --report_to=wandb \
-           --expr_id=laion10k_high_test
+           --fid_ref_path=$FFHQ_RAW_DATA \
+           --expr_id=ffhq_high_test

@@ -7,7 +7,7 @@ resolution: 1024
 random_flip: True   
 checkpointing_steps: 500   
 
-# dataset size
+# dataset size (use this option to limit dataset size)
 # max_train_samples: 3000
 
 # optimization params

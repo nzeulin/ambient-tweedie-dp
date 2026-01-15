@@ -1,3 +1,5 @@
+#!/bin/bash
+
 mkdir -p $BASE_PATH/datasets/  # create datasets folder if it does not exist
 cd $BASE_PATH/datasets  # move to datasets folder
 
@@ -43,23 +45,25 @@ cd $BASE_PATH/datasets  # move to datasets folder
 
 
 # # ------- FFHQ --------- #
-# download ffhq from huggingface
-wget -O FFHQ-1024-1.zip "https://huggingface.co/datasets/yangtao9009/FFHQ1024/resolve/main/FFHQ-1024-1.zip?download=true"
-wget -O FFHQ-1024-2.zip "https://huggingface.co/datasets/yangtao9009/FFHQ1024/resolve/main/FFHQ-1024-2.zip?download=true"
+# Download ffhq from huggingface (please reserve ~150GB for this procedure)
+wget -O $BASE_PATH/datasets/FFHQ-1024-1.zip "https://huggingface.co/datasets/yangtao9009/FFHQ1024/resolve/main/FFHQ-1024-1.zip?download=true"
+wget -O $BASE_PATH/datasets/FFHQ-1024-2.zip "https://huggingface.co/datasets/yangtao9009/FFHQ1024/resolve/main/FFHQ-1024-2.zip?download=true"
 
 echo "Exctracting FFHQ dataset..."
 mkdir -p $FFHQ_RAW_DATA
+
 n_files=$(unzip -l $BASE_PATH/datasets/FFHQ-1024-1.zip | tail -n 1 | awk '{print $2}')
 unzip -o  $BASE_PATH/datasets/FFHQ-1024-1.zip -d $FFHQ_RAW_DATA | tqdm --desc "FFHQ-1024-1.zip extracted" --unit files --unit_scale --total $n_files > /dev/null
+rm -f $BASE_PATH/datasets/FFHQ-1024-1.zip  # remove zip to save space
 
 n_files=$(unzip -l $BASE_PATH/datasets/FFHQ-1024-2.zip | tail -n 1 | awk '{print $2}')
 unzip -o  $BASE_PATH/datasets/FFHQ-1024-2.zip -d $FFHQ_RAW_DATA | tqdm --desc "FFHQ-1024-2.zip extracted" --unit files --unit_scale --total $n_files > /dev/null
+rm -f $BASE_PATH/datasets/FFHQ-1024-2.zip  # remove zip to save space
 
 echo "Flattening FFHQ directory structure..."
-mv $FFHQ_RAW_DATA/FFHQ-1024-1/*.png $FFHQ_RAW_DATA/
-mv $FFHQ_RAW_DATA/FFHQ-1024-1/*.txt $FFHQ_RAW_DATA/
-mv $FFHQ_RAW_DATA/FFHQ-1024-2/*.png $FFHQ_RAW_DATA/
-mv $FFHQ_RAW_DATA/FFHQ-1024-2/*.txt $FFHQ_RAW_DATA/
-find $FFHQ_RAW_DATA -mindepth 1 -type d -empty -delete
+find $FFHQ_RAW_DATA/FFHQ-1024-1/ -mindepth 1 -maxdepth 1 -exec mv -t $FFHQ_RAW_DATA/ {} +
+find $FFHQ_RAW_DATA/FFHQ-1024-2/ -mindepth 1 -maxdepth 1 -exec mv -t $FFHQ_RAW_DATA/ {} +
+rm -r $FFHQ_RAW_DATA/FFHQ-1024-1
+rm -r $FFHQ_RAW_DATA/FFHQ-1024-2
 
 

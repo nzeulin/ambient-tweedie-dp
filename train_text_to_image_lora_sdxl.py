@@ -1378,6 +1378,16 @@ def main(args):
                                                                         num_expected=args.num_images_for_fid, seed=42, max_batch_size=args.eval_batch_size, 
                                                                         distributed=False)
                         accelerator.print("Inception stats calculated.")
+
+                        # If reference FID statistics are not provided (which is by default), compute and cache them.
+                        if not os.path.exists(args.fid_ref_path):
+                            accelerator.print("Calculating reference inception stats...")
+                            ref_mu, ref_sigma, _ = calculate_inception_stats(image_path=args.train_dataset_path, 
+                                                                            num_expected=args.num_images_for_fid, seed=42, max_batch_size=args.eval_batch_size, 
+                                                                            distributed=False)
+                            np.save(args.fid_ref_path, (ref_mu, ref_sigma))
+                            accelerator.print(f"Reference inception stats calculated and saved at {args.fid_ref_path}.")
+                        ref_mu, ref_sigma = np.load(args.fid_ref_path, allow_pickle=True)
                         fid = calculate_fid_from_inception_stats(mu, sigma, args.fid_ref_path)
                         accelerator.log({"fid": fid, "inception": inception}, step=global_step)
 
