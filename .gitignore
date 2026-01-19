@@ -166,6 +166,7 @@ yolov5s.pt
 datasets
 laion_*
 wandb
+ffhq*
 
 # VSCode things
 .vscode

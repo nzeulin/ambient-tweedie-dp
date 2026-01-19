@@ -1,4 +1,5 @@
-expr_id: train_low_level_ffhq
+expr_id: train_high_level_ffhq
+
 # general params
 pretrained_model_name_or_path: stabilityai/stable-diffusion-xl-base-1.0
 pretrained_vae_model_name_or_path: madebyollin/sdxl-vae-fp16-fix
@@ -15,18 +16,18 @@ learning_rate: 1e-05
 lr_scheduler: constant 
 lr_warmup_steps: 0   
 mixed_precision: fp16
-validation_prompt: "face" 
+validation_prompt: "A close-up of a person"
 seed: 42   
 
 # Dataset params
 train_data_dir: "$FFHQ_RAW_DATA"
 train_batch_size: 1
-num_train_epochs: 25
+num_train_epochs: 50
 gradient_accumulation_steps: 16
 
 # logging
 min_validation_steps: 100
-validation_steps: 500
+validation_steps: 1000
 skip_first_epoch: False
 report_to: wandb
 output_dir: "$BASE_PATH/ffhq_high_level/"  

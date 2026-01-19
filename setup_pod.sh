@@ -33,5 +33,4 @@ cd /workspace/ambient-tweedie-dp
 accelerate launch train_text_to_image_lora_sdxl.py \
            --config=configs/train_high_level.yaml \
            --report_to=wandb \
-           --fid_ref_path=$FFHQ_RAW_DATA \
            --expr_id=ffhq_high_test

@@ -1348,14 +1348,67 @@ def main(args):
             if global_step >= args.max_train_steps:
                 break
             
-        if args.validation_prompt is not None and global_step % args.validation_steps == 0:
-            # only run validation if at least args.min_validation_steps have been run since last validation
-            if global_step - last_validation_step < args.min_validation_steps:
-                continue
-            with torch.no_grad():
-                if args.track_fid:
-                    # compute FID
-                    accelerator.print("FID computation starts...")
+            if args.validation_prompt is not None and global_step % args.validation_steps == 0:
+                # only run validation if at least args.min_validation_steps have been run since last validation
+                if global_step - last_validation_step < args.min_validation_steps:
+                    continue
+                with torch.no_grad():
+                    if args.track_fid:
+                        # compute FID
+                        accelerator.print("FID computation starts...")
+                        pipeline = StableDiffusionXLPipeline.from_pretrained(
+                            args.pretrained_model_name_or_path,
+                            vae=vae,
+                            text_encoder=unwrap_model(text_encoder_one),
+                            text_encoder_2=unwrap_model(text_encoder_two),
+                            unet=unwrap_model(unet),
+                            revision=args.revision,
+                            variant=args.variant,
+                            torch_dtype=weight_dtype,
+                        )
+                        pipeline = pipeline.to(accelerator.device)
+                        pipeline.set_progress_bar_config(disable=True)
+
+                        accelerator.print(f"Computing FID score with {args.num_images_for_fid} images...")
+                        gen_images(pipeline, None, log_under="validation_fid", num_validation_images=args.num_images_for_fid, track_images=False)
+                        accelerator.print(f"Generated {args.num_images_for_fid} images for FID computation.")
+                        if accelerator.is_main_process:
+                            accelerator.print("Calculating inception stats")
+                            validation_images_folder = os.path.join(args.output_dir, "validation_images", str(global_step))
+                            mu, sigma, inception = calculate_inception_stats(image_path=validation_images_folder, 
+                                                                            num_expected=args.num_images_for_fid, seed=42, max_batch_size=args.eval_batch_size, 
+                                                                            distributed=False)
+                            accelerator.print("Inception stats calculated.")
+
+                            # If reference FID statistics are not provided (which is by default), compute and cache them.
+                            if not os.path.exists(args.fid_ref_path):
+                                accelerator.print("Calculating reference inception stats...")
+                                ref_mu, ref_sigma, _ = calculate_inception_stats(image_path=args.train_data_dir, 
+                                                                                num_expected=args.num_images_for_fid, seed=42, max_batch_size=args.eval_batch_size, 
+                                                                                distributed=False)
+                                np.savez(args.fid_ref_path, ref_mu=ref_mu, ref_sigma=ref_sigma)
+                                accelerator.print(f"Reference inception stats calculated and saved at {args.fid_ref_path}.")
+                            ref_stats = np.load(args.fid_ref_path, allow_pickle=True)
+                            ref_mu, ref_sigma = ref_stats["ref_mu"], ref_stats["ref_sigma"]
+                            fid = calculate_fid_from_inception_stats(mu, sigma, ref_mu, ref_sigma)
+                            accelerator.log({"fid": fid, "inception": inception}, step=global_step)
+
+                        del pipeline
+                        accelerator.print("FID computation finished...")
+
+            # generate images for validation
+            if accelerator.is_main_process:
+                if args.validation_prompt is not None and global_step % args.validation_steps == 0:
+                    # only run validation if at least args.min_validation_steps have been run since last validation
+                    if global_step - last_validation_step < args.min_validation_steps:
+                        continue
+                    else:
+                        last_validation_step = global_step
+                    logger.info(
+                        f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
+                        f" {args.validation_prompt}."
+                    )
+                    # create pipeline
                     pipeline = StableDiffusionXLPipeline.from_pretrained(
                         args.pretrained_model_name_or_path,
                         vae=vae,
@@ -1368,80 +1421,29 @@ def main(args):
                     )
                     pipeline = pipeline.to(accelerator.device)
                     pipeline.set_progress_bar_config(disable=True)
-
-                    accelerator.print(f"Computing FID score with {args.num_images_for_fid} images...")
-                    gen_images(pipeline, None, log_under="validation_fid", num_validation_images=args.num_images_for_fid, track_images=False)
-                    accelerator.print(f"Generated {args.num_images_for_fid} images for FID computation.")
-                    if accelerator.is_main_process:
-                        accelerator.print("Calculating inception stats")
-                        mu, sigma, inception = calculate_inception_stats(image_path=os.path.join(args.output_dir, "validation_images", str(global_step)), 
-                                                                        num_expected=args.num_images_for_fid, seed=42, max_batch_size=args.eval_batch_size, 
-                                                                        distributed=False)
-                        accelerator.print("Inception stats calculated.")
-
-                        # If reference FID statistics are not provided (which is by default), compute and cache them.
-                        if not os.path.exists(args.fid_ref_path):
-                            accelerator.print("Calculating reference inception stats...")
-                            ref_mu, ref_sigma, _ = calculate_inception_stats(image_path=args.train_dataset_path, 
-                                                                            num_expected=args.num_images_for_fid, seed=42, max_batch_size=args.eval_batch_size, 
-                                                                            distributed=False)
-                            np.save(args.fid_ref_path, (ref_mu, ref_sigma))
-                            accelerator.print(f"Reference inception stats calculated and saved at {args.fid_ref_path}.")
-                        ref_mu, ref_sigma = np.load(args.fid_ref_path, allow_pickle=True)
-                        fid = calculate_fid_from_inception_stats(mu, sigma, args.fid_ref_path)
-                        accelerator.log({"fid": fid, "inception": inception}, step=global_step)
+                    with torch.no_grad():
+                        accelerator.print("Generating images, early stopped.")
+                        gen_images(pipeline, pipe_stop_index, log_under="validation_early_stopped", distributed=False)
+                        accelerator.print("Generating images, full.")
+                        gen_images(pipeline, None, log_under="validation_full", distributed=False)
+            
 
                     del pipeline
-                    accelerator.print("FID computation finished...")
-
-        # generate images for validation
-        if accelerator.is_main_process:
-            if args.validation_prompt is not None and global_step % args.validation_steps == 0:
-                # only run validation if at least args.min_validation_steps have been run since last validation
-                if global_step - last_validation_step < args.min_validation_steps:
-                    continue
-                else:
-                    last_validation_step = global_step
-                logger.info(
-                    f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
-                    f" {args.validation_prompt}."
-                )
-                # create pipeline
-                pipeline = StableDiffusionXLPipeline.from_pretrained(
-                    args.pretrained_model_name_or_path,
-                    vae=vae,
-                    text_encoder=unwrap_model(text_encoder_one),
-                    text_encoder_2=unwrap_model(text_encoder_two),
-                    unet=unwrap_model(unet),
-                    revision=args.revision,
-                    variant=args.variant,
-                    torch_dtype=weight_dtype,
-                )
-                pipeline = pipeline.to(accelerator.device)
-                pipeline.set_progress_bar_config(disable=True)
-                with torch.no_grad():
-                    accelerator.print("Generating images, early stopped.")
-                    gen_images(pipeline, pipe_stop_index, log_under="validation_early_stopped", distributed=False)
-                    accelerator.print("Generating images, full.")
-                    gen_images(pipeline, None, log_under="validation_full", distributed=False)
-        
-
-                del pipeline
-                ambient_utils.save_images(torch.cat([model_input, noisy_model_input, x0_pred]), 
-                                          os.path.join(args.output_dir, f"l_nature|l_input|l_red-{global_step}.png"), num_rows=3, 
-                                          save_wandb=True if args.report_to == "wandb" else False)
-                accelerator.print("Decoding images...")
-                with torch.no_grad():
-                    dec_model_input = vae.decode(model_input.to(vae.dtype) / vae.config.scaling_factor).sample
-                    dec_noisy_model_input = vae.decode(noisy_model_input.to(vae.dtype) / vae.config.scaling_factor).sample
-                    dec_x0_pred = vae.decode(x0_pred.to(vae.dtype) / vae.config.scaling_factor).sample
-                del model_input, noisy_model_input, x0_pred    
-                ambient_utils.save_images(torch.cat([dec_model_input, dec_noisy_model_input, dec_x0_pred]), 
-                                          os.path.join(args.output_dir, f"dec_nature|dec_input|dec_pred-{global_step}.png"), num_rows=3,
-                                          save_wandb=True if args.report_to == "wandb" else False)
-                del dec_model_input, dec_noisy_model_input, dec_x0_pred
-                accelerator.print("Finished decoding...")
-                torch.cuda.empty_cache()
+                    ambient_utils.save_images(torch.cat([model_input, noisy_model_input, x0_pred]), 
+                                            os.path.join(args.output_dir, f"l_nature|l_input|l_red-{global_step}.png"), num_rows=3, 
+                                            save_wandb=True if args.report_to == "wandb" else False)
+                    accelerator.print("Decoding images...")
+                    with torch.no_grad():
+                        dec_model_input = vae.decode(model_input.to(vae.dtype) / vae.config.scaling_factor).sample
+                        dec_noisy_model_input = vae.decode(noisy_model_input.to(vae.dtype) / vae.config.scaling_factor).sample
+                        dec_x0_pred = vae.decode(x0_pred.to(vae.dtype) / vae.config.scaling_factor).sample
+                    del model_input, noisy_model_input, x0_pred    
+                    ambient_utils.save_images(torch.cat([dec_model_input, dec_noisy_model_input, dec_x0_pred]), 
+                                            os.path.join(args.output_dir, f"dec_nature|dec_input|dec_pred-{global_step}.png"), num_rows=3,
+                                            save_wandb=True if args.report_to == "wandb" else False)
+                    del dec_model_input, dec_noisy_model_input, dec_x0_pred
+                    accelerator.print("Finished decoding...")
+                    torch.cuda.empty_cache()
 
 
     # Save the lora layers
