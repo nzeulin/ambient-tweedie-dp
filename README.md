@@ -1,5 +1,14 @@
 ## Consistent Diffusion Meets Tweedie: Training Exact Ambient Diffusion Models with Noisy Data
 
+NOTE: This project is a fork of the original repository: https://github.com/giannisdaras/ambient-tweedie
+
+Main changes:
+- Fixed training script so it runs without errors (incl. updated deprecated functions used in the latest versions of dependencies);
+- Edited model hyperparameters to be closer to those reported in the paper;
+- Added config to set up model fine-tuning in the remote environment (e.g., container).
+
+---
+
 This repository hosts the official PyTorch implementation of the paper: [Consistent Diffusion Meets Tweedie: Training Exact Ambient Diffusion Models with Noisy Data](https://giannisdaras.github.io/publications/consistent_diffusion_meets_tweedie.pdf).
 
 
